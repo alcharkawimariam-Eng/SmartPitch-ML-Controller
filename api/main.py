@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.schemas import PitchRequest, PitchResponse
-from api.model_loader import predict_pitch
+from api.model_loader import predict_pitch_with_raw
 
 app = FastAPI(
     title="SmartPitch API",
@@ -34,5 +34,12 @@ def model_info():
 
 @app.post("/predict", response_model=PitchResponse)
 def predict(req: PitchRequest):
-    pitch = predict_pitch(req.wind_speed, req.rotor_speed, req.power)
-    return PitchResponse(pitch=pitch)
+    clipped, raw = predict_pitch_with_raw(
+        req.wind_speed,
+        req.rotor_speed,
+        req.power,
+    )
+    return PitchResponse(
+        pitch=clipped,
+        pitch_raw=raw,
+    )

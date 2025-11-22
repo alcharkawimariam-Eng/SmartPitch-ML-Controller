@@ -1,4 +1,5 @@
-from pydantic import BaseModel
+from pydantic import BaseModel 
+from typing import Optional
 
 class PitchRequest(BaseModel):
     wind_speed: float
@@ -6,4 +7,5 @@ class PitchRequest(BaseModel):
     power: float
 
 class PitchResponse(BaseModel):
-    pitch: float
+    pitch: float                # clipped (safe) command
+    pitch_raw: Optional[float] = None  # ⬅ ADD THIS DEFAULT

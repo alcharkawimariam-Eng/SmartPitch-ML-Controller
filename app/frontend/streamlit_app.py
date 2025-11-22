@@ -9,6 +9,11 @@ import streamlit as st
 API_URL = os.getenv("API_URL", "http://localhost:8000")
 
 
+# Physical pitch limits (must match backend)
+PITCH_MIN = 0.0
+PITCH_MAX = 30.0
+PITCH_EPS = 0.05  # tolerance to detect saturation
+
 # ================== HELPERS ==================
 
 
@@ -24,7 +29,6 @@ def get_model_info():
 
 
 def call_predict_api(wind_speed: float, rotor_speed: float, power: float):
-    """Send features to the FastAPI /predict endpoint and return pitch + raw response."""
     payload = {
         "wind_speed": wind_speed,
         "rotor_speed": rotor_speed,
@@ -33,8 +37,10 @@ def call_predict_api(wind_speed: float, rotor_speed: float, power: float):
     resp = requests.post(f"{API_URL}/predict", json=payload, timeout=5)
     resp.raise_for_status()
     data = resp.json()
-    pitch = data.get("pitch")  # backend returns {"pitch": value}
-    return pitch, data
+    pitch = data.get("pitch")           # clipped (safe) command
+    pitch_raw = data.get("pitch_raw")   # unconstrained model output (may be >30°)
+    return pitch, pitch_raw, data
+
 
 
 @st.cache_data
@@ -83,7 +89,7 @@ top_left, top_right = st.columns([3, 2])
 with top_left:
     st.markdown("### Faculty of Engineering & Architecture – AUB")
     st.title("🌀 SmartPitch – ML-Based Pitch Controller")
-    st.caption("Graduate project – Region 3 collective pitch control using supervised ML (MLPRegressor)")
+    st.caption("Region 3 collective pitch control using supervised ML (MLPRegressor)")
 
     # Performance card
     st.info(
@@ -222,8 +228,7 @@ with tab_console:
 
         if predict_btn:
             try:
-                pitch, raw = call_predict_api(wind_speed, rotor_speed, power)
-
+                pitch, pitch_raw, raw = call_predict_api(wind_speed, rotor_speed, power)
                 if pitch is None:
                     st.error("Backend did not return a 'pitch' field. Check API response format.")
                 else:
@@ -233,6 +238,38 @@ with tab_console:
                         help="Output from the SmartPitch MLP model.",
                     )
 
+                                    # Warn if prediction is saturated at physical limits
+                if pitch is not None:
+                    if pitch >= PITCH_MAX - PITCH_EPS:
+                        if pitch_raw is not None:
+                            st.warning(
+                                f"Raw model pitch = {pitch_raw:.2f}°. For safety, the commanded "
+                                f"pitch is saturated at {PITCH_MAX:.0f}° within the physical "
+                                "limits [0°, 30°]."
+                            )
+                        else:
+                            st.warning(
+                                f"Pitch angle has been saturated at the physical maximum of {PITCH_MAX:.0f}°. "
+                                "This means the operating point is extreme and the unconstrained model "
+                                "would suggest a higher pitch, but we limit it for safety."
+                            )
+                    elif pitch <= PITCH_MIN + PITCH_EPS:
+                        if pitch_raw is not None:
+                            st.warning(
+                                f"Raw model pitch = {pitch_raw:.2f}°. For safety, the commanded "
+                                f"pitch is saturated at {PITCH_MIN:.0f}° within the physical "
+                                "limits [0°, 30°]."
+                            )
+                        else:
+                            st.warning(
+                                f"Pitch angle has been saturated at the physical minimum of {PITCH_MIN:.0f}°. "
+                                "This indicates an extreme operating point and the unconstrained model "
+                                "would suggest a lower pitch, but we limit it for safety."
+                            )
+
+
+                        
+                    
                     st.markdown("### Details")
                     st.write(
                         f"- **Wind speed:** {wind_speed:.2f} m/s  \n"
