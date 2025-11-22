@@ -43,11 +43,6 @@ def load_region3_data():
     return pd.read_csv("data/region3_clean.csv")
 
 
-def reset_true_pitch():
-    """Clear stored true pitch when user manually moves sliders."""
-    st.session_state["true_pitch"] = None
-
-
 # ================== PAGE CONFIG ==================
 
 st.set_page_config(
@@ -151,54 +146,70 @@ with tab_console:
     with col_inputs:
         st.subheader("Input Conditions")
 
+        # ---- Defaults from session_state (if any) ----
+        default_ws = float(st.session_state.get("wind_speed", 15.0))
+        default_rs = float(st.session_state.get("rotor_speed", 12.0))
+        default_p = float(st.session_state.get("power", 4000.0))
+
+         # Remember previous values BEFORE sliders (to detect manual changes)
+        prev_ws = default_ws
+        prev_rs = default_rs
+        prev_p  = default_p
+
+        # sliders (no custom keys, no on_change)
         wind_speed = st.slider(
             "Wind Speed [m/s]",
             min_value=10.0,
             max_value=25.0,
-            value=float(st.session_state["wind_speed"]),
+            value=default_ws,
             step=0.1,
             help="Region 3 typically starts around 10–11 m/s.",
-            key="wind_speed_slider",
-            on_change=reset_true_pitch,
         )
 
         rotor_speed = st.slider(
             "Rotor Speed [RPM]",
             min_value=9.0,
             max_value=20.0,
-            value=float(st.session_state["rotor_speed"]),
+            value=default_rs,
             step=0.1,
             help="Rotor speed in Region 3 (near rated).",
-            key="rotor_speed_slider",
-            on_change=reset_true_pitch,
         )
 
         power = st.slider(
             "Active Power [kW]",
             min_value=0.0,
             max_value=5000.0,
-            value=float(st.session_state["power"]),
+            value=default_p,
             step=50.0,
-            help="Generated electrical power (adjust to match turbine rated power).",
-            key="power_slider",
-            on_change=reset_true_pitch,
+            help="Generated electrical power.",
         )
 
-        # Keep session_state in sync with sliders
+        # keep current slider values in session_state
         st.session_state["wind_speed"] = wind_speed
         st.session_state["rotor_speed"] = rotor_speed
         st.session_state["power"] = power
 
+         # ❗ If user changed any slider, forget the old true_pitch
+        if (
+            wind_speed != prev_ws
+            or rotor_speed != prev_rs
+            or power != prev_p
+           ):
+           st.session_state["true_pitch"] = None
+
         st.markdown("---")
 
-        # 🎲 Use a random real sample from the dataset
+        # 🎲 Use a random real SCADA sample
         if df_data is not None:
             if st.button("🎲 Use random real SCADA sample", use_container_width=True):
                 sample = df_data.sample(1).iloc[0]
+
                 st.session_state["wind_speed"] = float(sample["wind_speed"])
                 st.session_state["rotor_speed"] = float(sample["rotor_speed"])
                 st.session_state["power"] = float(sample["power"])
                 st.session_state["true_pitch"] = float(sample["pitch"])
+
+                # force full rerun so sliders jump to the sample values
                 st.rerun()
         else:
             st.caption("Dataset not found (expected `data/region3_clean.csv`).")
