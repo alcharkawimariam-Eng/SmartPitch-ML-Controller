@@ -1,8 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.schemas import PitchRequest, PitchResponse
-from api.model_loader import predict_pitch_with_raw
+from api.schemas import (
+    PitchRequest,
+    PitchResponse,
+    PitchBatchRequest,
+    PitchBatchResponse,
+)
+from api.model_loader import predict_pitch_with_raw, predict_pitch_batch_with_raw
 
 app = FastAPI(
     title="SmartPitch API",
@@ -19,9 +24,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/health")
 def health_check():
     return {"status": "OK"}
+
 
 @app.get("/model_info")
 def model_info():
@@ -31,6 +38,7 @@ def model_info():
         "target": "pitch",
         "version": "1.0"
     }
+
 
 @app.post("/predict", response_model=PitchResponse)
 def predict(req: PitchRequest):
@@ -43,3 +51,23 @@ def predict(req: PitchRequest):
         pitch=clipped,
         pitch_raw=raw,
     )
+
+
+# ⬇️ NEW: batch endpoint
+@app.post("/predict_batch", response_model=PitchBatchResponse)
+def predict_batch(batch: PitchBatchRequest):
+    """
+    Batch prediction endpoint to avoid many small /predict calls.
+    """
+    ws_list = [s.wind_speed for s in batch.samples]
+    rs_list = [s.rotor_speed for s in batch.samples]
+    p_list  = [s.power for s in batch.samples]
+
+    results_tuples = predict_pitch_batch_with_raw(ws_list, rs_list, p_list)
+
+    results = [
+        PitchResponse(pitch=clipped, pitch_raw=raw)
+        for clipped, raw in results_tuples
+    ]
+
+    return PitchBatchResponse(results=results)

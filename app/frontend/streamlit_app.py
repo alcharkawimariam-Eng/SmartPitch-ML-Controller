@@ -2,6 +2,7 @@ import os
 import datetime
 import requests
 
+import numpy as np          # 👈 NEW
 import pandas as pd
 import streamlit as st
 
@@ -42,11 +43,55 @@ def call_predict_api(wind_speed: float, rotor_speed: float, power: float):
     return pitch, pitch_raw, data
 
 
-
 @st.cache_data
 def load_region3_data():
     """Load the cleaned Region 3 dataset for sampling."""
     return pd.read_csv("data/region3_clean.csv")
+
+
+def run_what_if_sweep(
+    rotor_speed: float,
+    power: float,
+    ws_min: float = 10.0,
+    ws_max: float = 25.0,
+    ws_step: float = 0.5,
+):
+    """
+    Sweep wind speed and call /predict_batch once.
+    Returns DataFrame with [wind_speed, rotor_speed, power, pitch, pitch_raw].
+    """
+    wind_speeds = np.arange(ws_min, ws_max + 1e-9, ws_step)
+
+    samples = [
+        {
+            "wind_speed": float(ws),
+            "rotor_speed": float(rotor_speed),
+            "power": float(power),
+        }
+        for ws in wind_speeds
+    ]
+
+    payload = {"samples": samples}
+
+    resp = requests.post(f"{API_URL}/predict_batch", json=payload, timeout=30.0)
+    resp.raise_for_status()
+    data = resp.json()
+
+    results = data.get("results", [])
+
+    records = []
+    for ws, res in zip(wind_speeds, results):
+        records.append(
+            {
+                "wind_speed": ws,
+                "rotor_speed": rotor_speed,
+                "power": power,
+                "pitch": res.get("pitch"),
+                "pitch_raw": res.get("pitch_raw"),
+            }
+        )
+
+    return pd.DataFrame(records)
 
 
 # ================== PAGE CONFIG ==================
@@ -116,9 +161,15 @@ with top_right:
 turb_col1, turb_col2 = st.columns([2, 3])
 with turb_col1:
     try:
-        st.image(turbine_path, use_container_width=True, caption="Onshore wind turbine operating in Region 3")
+        st.image(
+            turbine_path,
+            use_container_width=True,
+            caption="Onshore wind turbine operating in Region 3",
+        )
     except Exception:
-        st.markdown("*(Turbine illustration – add `assets/turbine_region3.jpg` for an image here.)*")
+        st.markdown(
+            "*(Turbine illustration – add `assets/turbine_region3.jpg` for an image here.)*"
+        )
 with turb_col2:
     with st.expander("ℹ️ **What is SmartPitch? (click to read)**", expanded=True):
         st.markdown(
@@ -141,8 +192,8 @@ st.markdown("---")
 
 # ================== TABS ==================
 
-tab_console, tab_overview, tab_region3 = st.tabs(
-    ["🎛 SmartPitch Console", "📘 Project Overview", "🌬️ Region 3 Basics"]
+tab_console, tab_overview, tab_region3, tab_what_if = st.tabs(
+    ["🎛 SmartPitch Console", "📘 Project Overview", "🌬️ Region 3 Basics", "🧪 What-if Lab"]
 )
 
 # ========= TAB 1: CONSOLE =========
@@ -157,10 +208,10 @@ with tab_console:
         default_rs = float(st.session_state.get("rotor_speed", 12.0))
         default_p = float(st.session_state.get("power", 4000.0))
 
-         # Remember previous values BEFORE sliders (to detect manual changes)
+        # Remember previous values BEFORE sliders (to detect manual changes)
         prev_ws = default_ws
         prev_rs = default_rs
-        prev_p  = default_p
+        prev_p = default_p
 
         # sliders (no custom keys, no on_change)
         wind_speed = st.slider(
@@ -195,13 +246,13 @@ with tab_console:
         st.session_state["rotor_speed"] = rotor_speed
         st.session_state["power"] = power
 
-         # ❗ If user changed any slider, forget the old true_pitch
+        # ❗ If user changed any slider, forget the old true_pitch
         if (
             wind_speed != prev_ws
             or rotor_speed != prev_rs
             or power != prev_p
-           ):
-           st.session_state["true_pitch"] = None
+        ):
+            st.session_state["true_pitch"] = None
 
         st.markdown("---")
 
@@ -228,9 +279,13 @@ with tab_console:
 
         if predict_btn:
             try:
-                pitch, pitch_raw, raw = call_predict_api(wind_speed, rotor_speed, power)
+                pitch, pitch_raw, raw = call_predict_api(
+                    wind_speed, rotor_speed, power
+                )
                 if pitch is None:
-                    st.error("Backend did not return a 'pitch' field. Check API response format.")
+                    st.error(
+                        "Backend did not return a 'pitch' field. Check API response format."
+                    )
                 else:
                     st.metric(
                         label="Predicted Pitch Angle",
@@ -238,7 +293,7 @@ with tab_console:
                         help="Output from the SmartPitch MLP model.",
                     )
 
-                                    # Warn if prediction is saturated at physical limits
+                # Warn if prediction is saturated at physical limits
                 if pitch is not None:
                     if pitch >= PITCH_MAX - PITCH_EPS:
                         if pitch_raw is not None:
@@ -267,9 +322,6 @@ with tab_console:
                                 "would suggest a lower pitch, but we limit it for safety."
                             )
 
-
-                        
-                    
                     st.markdown("### Details")
                     st.write(
                         f"- **Wind speed:** {wind_speed:.2f} m/s  \n"
@@ -283,12 +335,16 @@ with tab_console:
                         st.markdown("### 🔬 Comparison with Real Data")
                         st.write(f"- **True pitch (dataset):** `{true_pitch:.2f} °`")
                         st.write(f"- **Model prediction:** `{pitch:.2f} °`")
-                        st.write(f"- **Absolute error:** `{abs(pitch - true_pitch):.2f} °`")
+                        st.write(
+                            f"- **Absolute error:** `{abs(pitch - true_pitch):.2f} °`"
+                        )
 
                     # 🔹 Save scenario to history
                     st.session_state["history"].append(
                         {
-                            "Timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "Timestamp": datetime.datetime.now().strftime(
+                                "%Y-%m-%d %H:%M:%S"
+                            ),
                             "Wind [m/s]": round(wind_speed, 2),
                             "Rotor [RPM]": round(rotor_speed, 2),
                             "Power [kW]": round(power, 1),
@@ -308,7 +364,9 @@ with tab_console:
             except Exception as e:
                 st.error(f"Unexpected error while calling API: {e}")
         else:
-            st.info("Set the input values on the left and click **Predict Pitch Angle** to see the result.")
+            st.info(
+                "Set the input values on the left and click **Predict Pitch Angle** to see the result."
+            )
 
     st.markdown("---")
     st.subheader("📚 Scenario History")
@@ -437,3 +495,91 @@ By learning directly from **SCADA data**, SmartPitch can:
 - Provide fast inference suitable for real-time assistance or as a decision-support tool.
 """
         )
+
+# ========= TAB 4: WHAT-IF LAB =========
+with tab_what_if:
+    st.subheader("🧪 What-if Lab")
+
+    st.markdown(
+        """
+Explore how the **predicted pitch** changes when you sweep wind speed in Region 3,
+while keeping **rotor speed** and **active power** fixed.
+"""
+    )
+
+    col1, col2 = st.columns(2)
+    with col1:
+        fixed_rotor = st.number_input(
+            "Fixed rotor speed [RPM]",
+            min_value=0.0,
+            max_value=25.0,
+            value=float(st.session_state.get("rotor_speed", 12.0)),
+            step=0.1,
+        )
+    with col2:
+        fixed_power = st.number_input(
+            "Fixed active power [kW]",
+            min_value=0.0,
+            max_value=5000.0,
+            value=float(st.session_state.get("power", 4000.0)),
+            step=50.0,
+        )
+
+    with st.expander("Wind speed sweep settings", expanded=False):
+        ws_min = st.number_input("Wind speed min [m/s]", 0.0, 40.0, 10.0, 0.5)
+        ws_max = st.number_input("Wind speed max [m/s]", 0.0, 40.0, 25.0, 0.5)
+        ws_step = st.number_input("Wind speed step [m/s]", 0.1, 10.0, 0.5, 0.1)
+
+    # 🔁 Run sweep only when button is pressed, but SAVE result in session_state
+    if st.button("Run What-if sweep"):
+        if ws_max <= ws_min:
+            st.error("Wind speed max must be greater than min.")
+        else:
+            with st.spinner("Sweeping wind speed and calling /predict..."):
+                df_sweep = run_what_if_sweep(
+                    rotor_speed=fixed_rotor,
+                    power=fixed_power,
+                    ws_min=ws_min,
+                    ws_max=ws_max,
+                    ws_step=ws_step,
+                )
+            st.session_state["what_if_df"] = df_sweep
+
+    # 📦 Use last sweep result if available
+    df_sweep = st.session_state.get("what_if_df")
+
+    if df_sweep is not None and not df_sweep.empty:
+        st.subheader("Results table")
+        st.dataframe(df_sweep, use_container_width=True)
+
+        st.subheader("Pitch vs Wind Speed")
+
+        pitch_choice = st.radio(
+            "Pitch to plot:",
+            ["Clipped pitch (physical command)", "Raw pitch (model output)"],
+            index=0,
+            horizontal=True,
+        )
+
+        y_col = "pitch" if pitch_choice.startswith("Clipped") else "pitch_raw"
+
+        df_plot = df_sweep.dropna(subset=[y_col])
+
+        if df_plot.empty:
+            st.warning(
+                f"No valid values found for `{y_col}`. "
+                "Check that the backend returns both `pitch` and `pitch_raw`."
+            )
+        else:
+            chart_data = df_plot[["wind_speed", y_col]].set_index("wind_speed")
+            st.line_chart(chart_data)
+
+        csv = df_sweep.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "Download results as CSV",
+            data=csv,
+            file_name="what_if_pitch_vs_wind.csv",
+            mime="text/csv",
+        )
+    else:
+        st.info("Run the sweep to see the curve.")
