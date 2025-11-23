@@ -1,85 +1,114 @@
 # SmartPitch – ML-Based Region 3 Pitch Controller
 
 SmartPitch is a data-driven pitch angle assistant for utility-scale wind turbines operating in **Region 3** (above rated wind speed).
-It predicts the optimal pitch angle based on SCADA measurements:
+It predicts the required blade pitch angle from:
 
 * Wind speed (m/s)
 * Rotor speed (RPM)
 * Active power (kW)
 
-The system outputs:
+and returns:
 
 * **Raw pitch** (unconstrained ML output)
-* **Safe pitch** (clipped to the physical range **0°–30°**)
+* **Safe pitch** (clipped to the physical range 0°–30°)
 
-This makes SmartPitch suitable as a **research tool**, a **controller-design assistant**, and an **educational simulator** for Region 3 dynamics.
+This makes SmartPitch suitable as a **research tool**, a **controller design assistant**, and an **educational simulator** for high-wind operation.
 
 ---
 
-## 1. Background: Wind Turbines & Region 3
+## 1. Background: Wind Turbines and Region 3
 
-Modern horizontal-axis wind turbines operate in three regions:
+### 1.1 What is a wind turbine?
 
-### Region 1
+A horizontal-axis wind turbine consists of:
 
-Below cut-in wind speed. Turbine is idle.
+* **Rotor blades** that capture wind energy
+* **Hub and nacelle** housing drivetrain and generator
+* **Tower** providing structural support
+* **Pitch system** that rotates the blades around their axes
 
-### Region 2
+The **pitch angle** controls how much aerodynamic force each blade captures:
 
-Between cut-in and rated wind speed.
-Goal: maximize energy capture (MPPT).
-Pitch angle remains small.
+* Small pitch → more lift → more aerodynamic torque
+* Large pitch → less lift → reduced torque
+* Very large pitch → used for braking and shutdown
 
-### Region 3
+### 1.2 Wind turbine operating regions
 
-Wind is above rated.
+Wind turbines are typically controlled in three operating regions:
+
+**Region 1 – Below cut-in wind speed**
+The wind is too weak; the turbine remains idle.
+
+**Region 2 – Between cut-in and rated wind speed**
+Goal: maximise energy capture.
+The pitch stays small; control focuses on torque or generator speed.
+
+**Region 3 – Above rated wind speed (our focus)**
+The incoming wind power is too high.
 Goal: **keep generator power near rated** and **protect the turbine**.
-Pitch angle increases to shed aerodynamic loads.
+Pitch control becomes the dominant mechanism.
 
-Because Region 3 involves strong and turbulent winds, effective pitch control is critical to:
+In Region 3:
 
-* limit torque
-* avoid overspeed
-* reduce mechanical stress
-* maintain safe operation
+* Aerodynamic forces are large
+* Blade pitch is increased to reduce lift
+* Rotor overspeed and overload must be prevented
+* Effective pitch control is critical for safety
 
 ---
 
 ## 2. Why Machine Learning?
 
-Traditional strategies rely on:
+Traditional pitch controllers rely on:
 
-* lookup tables
-* PID or gain-scheduled controllers
-* simplified aerodynamic models
+* Lookup tables
+* Gain-scheduled PID controllers
+* Linear approximations
 
-These can struggle when conditions vary (turbulence, aging, derating, noise).
+They may struggle when:
 
-Machine Learning offers:
+* Turbulence intensity changes
+* Atmospheric conditions drift
+* The turbine is derated
+* Components age or degrade
 
-* ability to learn nonlinear relationships directly from SCADA data
-* adaptive behavior when retrained
-* fast inference suitable for interactive analysis
-* transparent raw vs. safe predictions
+Machine learning can:
 
-SmartPitch is not intended as a certified controller—it is a **decision-support tool**.
+* Learn nonlinear relationships directly from SCADA data
+* Adapt when retrained
+* Provide transparent raw vs. clipped outputs
+* Enable fast what-if analysis and testing
+
+SmartPitch is not a certified controller but a **decision-support tool** for research.
 
 ---
 
 ## 3. Machine Learning Model
 
-* Model: `MLPRegressor` (scikit-learn)
-* Inputs: wind speed, rotor speed, power
-* Target: pitch angle
-* Scaling: `StandardScaler`
-* Dataset: cleaned Region 3 SCADA (`data/region3_clean.csv`)
+* Model: `MLPRegressor` (fully-connected neural network)
+* Inputs:
+
+  * wind_speed (m/s)
+  * rotor_speed (RPM)
+  * power (kW)
+* Target:
+
+  * pitch angle (deg)
+
+### Preprocessing
+
+* Region 3 filtering
+* Outlier removal
+* Normalization using `StandardScaler`
+* Dataset stored in: `data/region3_clean.csv`
 
 ### Model performance (test set)
 
 * MAE ≈ 0.55°
 * R² ≈ 0.95
 
-Saved artifacts:
+### Saved ML artifacts
 
 ```
 api/models/standard_scaler.joblib
@@ -116,7 +145,7 @@ SmartPitch-ML-Controller/
 
 ## 5. FastAPI Backend
 
-### Run without Docker
+### Run manually
 
 ```
 uvicorn api.main:app --reload
@@ -127,17 +156,14 @@ uvicorn api.main:app --reload
 **GET /health**
 Health check.
 
-**GET /model_info**
-Returns model and feature information.
-
 **POST /predict**
 Input:
 
 ```json
 {
-  "wind_speed": 15.2,
-  "rotor_speed": 12.1,
-  "power": 3500
+  "wind_speed": 15.0,
+  "rotor_speed": 12.0,
+  "power": 3600
 }
 ```
 
@@ -145,19 +171,19 @@ Output:
 
 ```json
 {
-  "pitch": 25.4,
-  "pitch_raw": 32.8
+  "pitch": 28.5,
+  "pitch_raw": 34.2
 }
 ```
 
-`pitch` is clipped to `[0°, 30°]`.
-`pitch_raw` exposes the unconstrained model output.
+* `pitch_raw`: raw ML output
+* `pitch`: clipped into `[0°, 30°]` for safety
 
 ---
 
-## 6. Streamlit User Interface
+## 6. Streamlit UI
 
-### Run without Docker
+### Run manually
 
 ```
 streamlit run app/frontend/streamlit_app.py
@@ -166,10 +192,10 @@ streamlit run app/frontend/streamlit_app.py
 ### Features
 
 * Real-time pitch prediction
-* Raw + safe pitch values
-* Warnings when clipping occurs
-* Random Region-3 SCADA sampling
-* Comparison with true pitch values
+* Displays raw vs. safe pitch
+* Automatic warnings when clipping occurs
+* Random SCADA sample loading
+* Comparison with true pitch
 * Scenario history
 * Tabs:
 
@@ -195,32 +221,33 @@ docker compose up
 
 ### Access
 
-* API docs: [http://localhost:8000/docs](http://localhost:8000/docs)
-* Streamlit UI: [http://localhost:8501](http://localhost:8501)
+* API: [http://localhost:8000](http://localhost:8000)
+* API Docs: [http://localhost:8000/docs](http://localhost:8000/docs)
+* UI: [http://localhost:8501](http://localhost:8501)
 
 ---
 
-## 8. Use Cases & Benefits
+## 8. Benefits and Use Cases
 
-SmartPitch can be used to:
+SmartPitch allows:
 
-* Study pitch behaviour in Region 3
-* Validate extreme conditions and clipping
-* Assist controller development
-* Explore nonlinear SCADA relationships
-* Provide educational insight into high-wind operation
+* Studying Region 3 pitch behaviour
+* Inspecting extreme operating points
+* Understanding when and why pitch saturates
+* Supporting hybrid controller development
+* Teaching and demonstrating wind turbine control concepts
 
 ---
 
 ## 9. Planned Enhancements
 
-1. What-if pitch vs wind-speed curve
-2. Time-series mode (CSV upload → full prediction)
-3. Power derating scenarios (100%, 90%, 80%)
-4. Extreme event warnings
-5. Model selection (MLP, RF, SVR)
-6. API authentication
-7. Extended Region-3 visualisations
+* Pitch vs. wind-speed “what-if” curve
+* Time-series evaluation from CSV upload
+* Power derating modes
+* Extreme-load warnings
+* Switchable models (MLP, RF, SVR)
+* API security tokens
+* Advanced Region 3 visualisation
 
 ---
 
@@ -230,6 +257,3 @@ SmartPitch can be used to:
 * Joumana Saker
 * Supervisor: Dr Ammar Mohanna
 * Faculty of Engineering & Architecture – AUB
-
-
-Just ask!
