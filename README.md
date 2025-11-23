@@ -143,7 +143,57 @@ SmartPitch-ML-Controller/
 
 ---
 
-## 5. FastAPI Backend
+## 5. Quick Start
+This section explains exactly how to run the project, including the FastAPI backend and the Streamlit UI.
+
+
+### Create and activate a Virtual Environment (Windows)
+Since we are running a machine-learning project, it's safer to create virtual environment This avoids version conflicts (especially with scikit-learn and numpy). from root path, create a virtual env
+
+```
+# Navigate to the project folder
+cd SmartPitch-ML-Controller-main
+
+# Create virtual environment
+python -m venv venv
+
+
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
+
+# Activate it
+.\venv\Scripts\Activate.ps1
+
+```
+
+### Install dependencies
+```
+pip install -r requirements.txt
+```
+If your environment complains about missing dependencies, you can install missing ones manually:
+
+```
+pip install uvicorn fastapi streamlit scikit-learn pandas matplotlib joblib
+```
+
+### Start the FastAPI backend
+```
+uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+```
+Keep this terminal open.
+
+### Start the Streamlit UI
+Open a new terminal and activate the venv again:
+```
+# cd to the root path
+cd SmartPitch-ML-Controller-main
+venv\Scripts\activate
+
+streamlit run app/frontend/streamlit_app.py
+```
+
+---
+
+## 6. FastAPI Backend
 
 ### Run manually
 
@@ -157,6 +207,7 @@ uvicorn api.main:app --reload
 Health check.
 
 **POST /predict**
+returns raw and safe pitch
 Input:
 
 ```json
@@ -181,7 +232,7 @@ Output:
 
 ---
 
-## 6. Streamlit UI
+## 7. Streamlit UI
 
 ### Run manually
 
@@ -205,7 +256,7 @@ streamlit run app/frontend/streamlit_app.py
 
 ---
 
-## 7. Docker Deployment
+## 8. Docker Deployment
 
 ### Build
 
@@ -227,7 +278,7 @@ docker compose up
 
 ---
 
-## 8. Benefits and Use Cases
+## 9. Benefits and Use Cases
 
 SmartPitch allows:
 
@@ -239,7 +290,7 @@ SmartPitch allows:
 
 ---
 
-## 9. Planned Enhancements
+## 10. Planned Enhancements
 
 * Pitch vs. wind-speed “what-if” curve
 * Time-series evaluation from CSV upload
@@ -251,7 +302,7 @@ SmartPitch allows:
 
 ---
 
-## 10. Team
+## 11. Team
 
 * Mariam Charkawi
 * Joumana Saker
