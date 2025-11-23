@@ -1,5 +1,7 @@
 import joblib
 import os
+import numpy as np   # 👈 NEW
+
 
 # Path to /api/models/
 MODEL_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models")
@@ -45,3 +47,27 @@ def predict_pitch(wind_speed: float, rotor_speed: float, power: float) -> float:
     """
     clipped, _ = predict_pitch_with_raw(wind_speed, rotor_speed, power)
     return clipped
+
+
+def predict_pitch_batch_with_raw(ws_list, rs_list, p_list):
+    """
+    Vectorized batch prediction.
+
+    Arguments are iterables of the same length:
+      - ws_list: wind speeds
+      - rs_list: rotor speeds
+      - p_list : powers
+
+    Returns a list of (clipped_pitch, raw_pitch) tuples.
+    """
+    X = np.column_stack([ws_list, rs_list, p_list])  # shape (N, 3)
+    X_scaled = scaler.transform(X)
+    raw_preds = model.predict(X_scaled)
+
+    results = []
+    for raw_pitch in raw_preds:
+        raw_pitch = float(raw_pitch)
+        clipped_pitch = max(PITCH_MIN, min(PITCH_MAX, raw_pitch))
+        results.append((clipped_pitch, raw_pitch))
+
+    return results
