@@ -43,6 +43,75 @@ def call_predict_api(wind_speed: float, rotor_speed: float, power: float):
     return pitch, pitch_raw, data
 
 
+def call_wind_profile_api(hor_windv: float, rot_speed: float, gen_pwr: float):
+    """
+    Call the /predict_wind_profile endpoint (Random Forest wind-profile model).
+
+    Backend (Swagger) expects JSON of the form:
+    {
+      "wind_speeds": [0],
+      "rotor_speed": 0,
+      "gen_pwr": 0,
+      "time_step": 1
+    }
+    """
+    payload = {
+        "wind_speeds": [hor_windv],   # list, even for one value
+        "rotor_speed": rot_speed,
+        "gen_pwr": gen_pwr,
+        "time_step": 1,
+    }
+    resp = requests.post(f"{API_URL}/predict_wind_profile", json=payload, timeout=5)
+    resp.raise_for_status()
+    data = resp.json()
+    pitch = data.get("pitch")
+    return pitch, data
+
+
+# 🔹 NEW: helper for time-series wind-profile
+def call_wind_profile_series_api(
+    wind_speeds: list[float],
+    rotor_speeds: list[float],
+    gen_powers: list[float],
+    time_step: float = 1.0,
+):
+    """
+    Call the /predict_wind_profile_series endpoint.
+
+    Expects all three lists to have the same length.
+    """
+    payload = {
+        "wind_speeds": wind_speeds,
+        "rotor_speeds": rotor_speeds,
+        "gen_powers": gen_powers,
+        "time_step": time_step,
+    }
+    resp = requests.post(
+        f"{API_URL}/predict_wind_profile_series", json=payload, timeout=10
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    pitches = data.get("pitch_series", [])
+    return pitches, data
+
+
+def _parse_series_text(text: str) -> list[float]:
+    """
+    Small utility: parse comma- or semicolon-separated numbers into a float list.
+    Example: '15, 15.5, 16; 17' -> [15.0, 15.5, 16.0, 17.0]
+    """
+    if not text.strip():
+        return []
+    parts = text.replace(";", ",").split(",")
+    values = []
+    for p in parts:
+        s = p.strip()
+        if not s:
+            continue
+        values.append(float(s))
+    return values
+
+
 @st.cache_data
 def load_region3_data():
     """Load the cleaned Region 3 dataset for sampling."""
@@ -164,7 +233,7 @@ with turb_col1:
         st.image(
             turbine_path,
             use_container_width=True,
-            caption="Onshore wind turbine operating in Region 3",
+            caption="Onshore Wind Turbines",
         )
     except Exception:
         st.markdown(
@@ -192,9 +261,17 @@ st.markdown("---")
 
 # ================== TABS ==================
 
-tab_console, tab_overview, tab_region3, tab_what_if = st.tabs(
-    ["🎛 SmartPitch Console", "📘 Project Overview", "🌬️ Region 3 Basics", "🧪 What-if Lab"]
+tab_console, tab_overview, tab_region3, tab_what_if, tab_wind_profile, tab_wind_profile_series = st.tabs(
+    [
+        "🎛 SmartPitch Console",
+        "📘 Project Overview",
+        "🌬️ Region 3 Basics",
+        "🧪 What-if Lab",
+        "🌪 Wind-profile Model",
+        "📈 Wind-profile Time Series",   # NEW TAB
+    ]
 )
+
 
 # ========= TAB 1: CONSOLE =========
 with tab_console:
@@ -385,6 +462,7 @@ with tab_console:
     else:
         st.caption("No scenarios yet. Run a prediction to start building the history.")
 
+
 # ========= TAB 2: PROJECT OVERVIEW =========
 with tab_overview:
     st.subheader("🎯 Objective")
@@ -447,6 +525,7 @@ which we then exported and deployed in this API.
 """
     )
 
+
 # ========= TAB 3: REGION 3 BASICS =========
 with tab_region3:
     st.subheader("🌬️ What is Region 3?")
@@ -495,6 +574,7 @@ By learning directly from **SCADA data**, SmartPitch can:
 - Provide fast inference suitable for real-time assistance or as a decision-support tool.
 """
         )
+
 
 # ========= TAB 4: WHAT-IF LAB =========
 with tab_what_if:
@@ -583,3 +663,190 @@ while keeping **rotor speed** and **active power** fixed.
         )
     else:
         st.info("Run the sweep to see the curve.")
+
+
+# ========= TAB 5: SINGLE-POINT WIND-PROFILE MODEL =========
+with tab_wind_profile:
+    st.subheader("🌪 Wind-profile ML model (Region 3)")
+
+    st.markdown(
+        """
+This tab uses the **Random Forest wind-profile model** deployed at
+`/predict_wind_profile`.  
+Enter one operating point (wind speed, rotor speed, generator power) and see the
+predicted pitch angle.
+"""
+    )
+
+    col_in, col_out = st.columns([1, 1])
+
+    with col_in:
+        hor_windv = st.number_input(
+            "Horizontal wind speed [m/s]",
+            min_value=10.0,
+            max_value=25.0,
+            value=float(st.session_state.get("wind_speed", 15.0)),
+            step=0.1,
+        )
+        rot_speed = st.number_input(
+            "Rotor speed [RPM]",
+            min_value=9.0,
+            max_value=20.0,
+            value=float(st.session_state.get("rotor_speed", 12.0)),
+            step=0.1,
+        )
+        gen_pwr = st.number_input(
+            "Active power [kW]",
+            min_value=0.0,
+            max_value=6000.0,
+            value=float(st.session_state.get("power", 4000.0)),
+            step=50.0,
+        )
+
+        wind_profile_btn = st.button("🚀 Predict with wind-profile model")
+
+    with col_out:
+        st.subheader("Prediction Result")
+
+        if wind_profile_btn:
+            try:
+                pitch_wp, raw_wp = call_wind_profile_api(hor_windv, rot_speed, gen_pwr)
+                if pitch_wp is None:
+                    st.error("Backend did not return a 'pitch' field. Check API.")
+                else:
+                    st.metric(
+                        label="Predicted pitch (wind-profile RF model)",
+                        value=f"{pitch_wp:.2f} °",
+                    )
+
+                    st.markdown("### Details")
+                    st.write(
+                        f"- **Horizontal wind speed:** {hor_windv:.2f} m/s  \n"
+                        f"- **Rotor speed:** {rot_speed:.2f} RPM  \n"
+                        f"- **Generator power:** {gen_pwr:.0f} kW"
+                    )
+
+                    with st.expander("🔍 Raw API response"):
+                        st.json(raw_wp)
+
+            except requests.exceptions.ConnectionError:
+                st.error(
+                    "❌ Cannot connect to the API.\n\n"
+                    "Make sure FastAPI is running:\n"
+                    "`uvicorn api.main:app --reload`"
+                )
+            except Exception as e:
+                st.error(f"Unexpected error while calling wind-profile API: {e}")
+        else:
+            st.info(
+                "Set the inputs on the left and click "
+                "**Predict with wind-profile model**."
+            )
+
+
+# ========= TAB 6: TIME-SERIES WIND-PROFILE MODEL =========
+with tab_wind_profile_series:
+    st.subheader("📈 Wind-profile Time Series (Region 3)")
+
+    st.markdown(
+        """
+Provide a **time series** of wind speed, rotor speed and generator power.
+All three lists must have the same number of samples.
+
+The app will call `/predict_wind_profile_series` and plot the predicted pitch profile.
+"""
+    )
+
+    example_ws = "15, 15.5, 16, 16.5, 17"
+    example_rs = "12, 12.1, 12.2, 12.3, 12.4"
+    example_gp = "3800, 3900, 4000, 4100, 4200"
+
+    col_ts1, col_ts2 = st.columns(2)
+
+    with col_ts1:
+        ws_text = st.text_area(
+            "Wind speeds [m/s] (comma or ; separated)",
+            value=example_ws,
+            height=100,
+        )
+        rs_text = st.text_area(
+            "Rotor speeds [RPM] (same length)",
+            value=example_rs,
+            height=100,
+        )
+        gp_text = st.text_area(
+            "Generator powers [kW] (same length)",
+            value=example_gp,
+            height=100,
+        )
+
+    with col_ts2:
+        time_step = st.number_input(
+            "Time step between samples [s]",
+            min_value=0.1,
+            max_value=600.0,
+            value=1.0,
+            step=0.1,
+        )
+
+        run_ts_btn = st.button("🚀 Predict time-series pitch profile")
+
+    if run_ts_btn:
+        try:
+            ws_list = _parse_series_text(ws_text)
+            rs_list = _parse_series_text(rs_text)
+            gp_list = _parse_series_text(gp_text)
+
+            n_ws = len(ws_list)
+            n_rs = len(rs_list)
+            n_gp = len(gp_list)
+
+            if n_ws == 0:
+                st.error("Please provide at least one sample in the wind-speed series.")
+            elif not (n_ws == n_rs == n_gp):
+                st.error(
+                    f"All series must have the SAME length. "
+                    f"Now: wind={n_ws}, rotor={n_rs}, power={n_gp}"
+                )
+            else:
+                with st.spinner("Calling /predict_wind_profile_series ..."):
+                    pitch_series, raw_series = call_wind_profile_series_api(
+                        ws_list, rs_list, gp_list, time_step=time_step
+                    )
+
+                if not pitch_series:
+                    st.error("Backend did not return 'pitch_series'. Check API.")
+                else:
+                    n = len(ws_list)
+                    times = np.arange(0, n * time_step, time_step)
+
+                    df_ts = pd.DataFrame(
+                        {
+                            "time_s": times[:n],
+                            "wind_speed": ws_list,
+                            "rotor_speed": rs_list,
+                            "gen_power": gp_list,
+                            "pitch": pitch_series,
+                        }
+                    )
+
+                    st.subheader("Time-series table")
+                    st.dataframe(df_ts, use_container_width=True)
+
+                    st.subheader("Pitch vs Time")
+                    chart_data = df_ts[["time_s", "pitch"]].set_index("time_s")
+                    st.line_chart(chart_data)
+
+                    with st.expander("🔍 Raw API response"):
+                        st.json(raw_series)
+
+        except ValueError as ve:
+            st.error(f"Could not parse the series: {ve}")
+        except requests.exceptions.ConnectionError:
+            st.error(
+                "❌ Cannot connect to the API.\n\n"
+                "Make sure FastAPI is running:\n"
+                "`uvicorn api.main:app --reload`"
+            )
+        except Exception as e:
+            st.error(f"Unexpected error while calling time-series API: {e}")
