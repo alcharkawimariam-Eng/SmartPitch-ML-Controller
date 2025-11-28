@@ -332,8 +332,6 @@ SmartPitch allows:
 
 ## 10. Planned Enhancements
 
-* Pitch vs. wind-speed “what-if” curve
-* Time-series evaluation from CSV upload
 * Power derating modes
 * Extreme-load warnings
 * Switchable models (MLP, RF, SVR)
