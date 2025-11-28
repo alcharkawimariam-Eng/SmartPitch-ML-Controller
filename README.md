@@ -15,6 +15,18 @@ and returns:
 This makes SmartPitch suitable as a **research tool**, a **controller design assistant**, and an **educational simulator** for high-wind operation.
 
 ---
+---
+
+## 🔹 New Update: NREL 5MW Dataset Integration
+
+SmartPitch has been expanded to support a second major dataset: the **NREL 5MW Reference Wind Turbine**.  
+Two new types of Region 3 data were added:
+
+1. **Region 3 – Steady Operating Point Dataset**  
+2. **Region 3 – Turbulent Wind-Profile Dataset**
+
+Both datasets were fully cleaned, filtered, and analyzed using new EDA notebooks.  
+This enhancement allows SmartPitch to study realistic turbulent high-wind conditions and compare model behavior across different inflow types.
 
 ## 1. Background: Wind Turbines and Region 3
 
@@ -114,6 +126,31 @@ SmartPitch is not a certified controller but a **decision-support tool** for res
 api/models/standard_scaler.joblib
 api/models/mlp_pitch_regressor_best.joblib
 ```
+---
+
+## 🔹 Additional Machine Learning Models (NREL Dataset)
+
+New ML workflows were added using the NREL 5MW datasets, with two training paths:
+
+### **A) Region 3 – Operating Point Dataset**
+Notebook: `05-region3-operating-point.ipynb`
+
+- Clean Region 3 steady dataset  
+- EDA + filtering  
+- Models tested: MLP, Random Forest, Linear Regression  
+- **Best model:** MLP (similar behavior to original SCADA model)
+
+### **B) Region 3 – Turbulent Wind-Profile Dataset**
+Notebook: `06-region3-wind-profile.ipynb`
+
+- Time-varying turbulent inflow  
+- Region 3 filtering  
+- Models tested: MLP, Linear Regression, SVR, Random Forest  
+- **Best model:** Random Forest  
+  (most stable under turbulence and nonlinear behavior)
+
+Two new datasets were added:
+
 
 ---
 
@@ -287,6 +324,9 @@ SmartPitch allows:
 * Understanding when and why pitch saturates
 * Supporting hybrid controller development
 * Teaching and demonstrating wind turbine control concepts
+* Ability to compare steady-wind vs turbulent-wind performance  
+* Evaluate model robustness under realistic NREL turbulence  
+* Support for two parallel Region-3 modelling paths (operating-point vs wind-profile)
 
 ---
 
