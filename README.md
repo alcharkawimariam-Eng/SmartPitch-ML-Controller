@@ -314,8 +314,46 @@ docker compose up
 * UI: [http://localhost:8501](http://localhost:8501)
 
 ---
+## 9. Project UI Overview
+Below is the main interface of SmartPitch:
 
-## 9. Benefits and Use Cases
+SmartPitch Landing Page
+<img width="1863" height="943" alt="UI1" src="https://github.com/user-attachments/assets/d7d95163-8364-4167-b2c6-7d5b1ed1e1bf" />
+
+SmartPitch Console – Real-time Pitch Prediction
+ 
+<img width="1838" height="815" alt="UI2" src="https://github.com/user-attachments/assets/fd4da056-67bb-46a3-972c-9821983795ce" />
+
+Scenario History
+
+<img width="1868" height="470" alt="UI3" src="https://github.com/user-attachments/assets/c0d6920e-90ab-443f-b4c8-fd3e8a7cacfe" />
+
+Project Overview Tab
+<img width="1888" height="846" alt="UI4" src="https://github.com/user-attachments/assets/d64e0b5d-d50e-4518-9553-98fbd0c8cab2" />
+
+Region 3 Basics
+
+<img width="1865" height="781" alt="UI5" src="https://github.com/user-attachments/assets/206a40fb-9033-4f7b-8729-3aa087572c5e" />
+
+What-if Lab
+
+<img width="1832" height="882" alt="UI6" src="https://github.com/user-attachments/assets/dcebb450-c6c0-487b-9b19-e92154fae1b4" />
+<img width="1831" height="582" alt="UI7" src="https://github.com/user-attachments/assets/97a78200-029f-4ac9-9a5d-51cf1ef612d7" />
+<img width="1837" height="591" alt="UI8" src="https://github.com/user-attachments/assets/45e20cc7-2667-479d-8d38-3e165a2d3fee" />
+
+
+Wind-Profile Model (Random Forest)
+<img width="1825" height="671" alt="UI9" src="https://github.com/user-attachments/assets/1976bef7-0526-42d5-a01f-d0cf8ca89192" />
+
+
+Wind-Profile Time Series
+<img width="1857" height="881" alt="UI10" src="https://github.com/user-attachments/assets/ab2bd96e-fc75-46bb-93ab-2bfe6762990f" />
+
+<img width="1842" height="478" alt="UI11" src="https://github.com/user-attachments/assets/d0644b2d-a5e1-472b-8a35-4b73d5257ec2" />
+
+
+---
+## 10. Benefits and Use Cases
 
 SmartPitch allows:
 
@@ -330,17 +368,17 @@ SmartPitch allows:
 
 ---
 
-## 10. Planned Enhancements
+## 11. Planned Enhancements
 
 * Power derating modes
 * Extreme-load warnings
 * Switchable models (MLP, RF, SVR)
 * API security tokens
-* Advanced Region 3 visualisation
+* Advanced Region 3 visualization
 
 ---
 
-## 11. Team
+## 12. Team
 
 * Mariam Charkawi
 * Joumana Saker
